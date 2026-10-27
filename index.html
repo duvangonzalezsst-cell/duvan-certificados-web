@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Centro de Capacitación Duvan Gonzalez</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#eef3f8;color:#18344e}
+header{background:#123f63;color:white;padding:28px 16px;text-align:center}
+header h1{font-size:23px}
+main{max-width:650px;margin:25px auto;padding:0 15px}
+section{background:white;border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 3px 12px #0001}
+h2{font-size:19px}
+input,select,button{width:100%;padding:13px;margin:7px 0 13px;box-sizing:border-box;border-radius:8px;border:1px solid #cad5df;font-size:15px}
+button{background:#146eab;color:white;border:0;font-weight:bold;cursor:pointer}
+label{font-size:14px;font-weight:bold}
+.hidden{display:none}
+#result,#message{line-height:1.8;overflow-wrap:anywhere}
+footer{text-align:center;padding:20px;color:#617080}
+</style>
+</head>
+<body>
+<header>
+<h1>CENTRO DE CAPACITACIÓN<br>DUVAN GONZALEZ</h1>
+<p>Verificación de certificados de cursos</p>
+</header>
+<main>
+<section>
+<h2>Verificar certificado</h2>
+<p>Ingresa el código del certificado.</p>
+<form id="searchForm">
+<input id="searchCode" placeholder="Código del certificado" required>
+<button>Verificar certificado</button>
+</form>
+<div id="result" role="status"></div>
+</section>
+<section>
+<h2>Acceso administrador</h2>
+<div id="loginArea">
+<form id="loginForm">
+<label>Correo electrónico</label>
+<input id="email" type="email" required>
+<label>Contraseña</label>
+<input id="password" type="password" required>
+<button>Ingresar</button>
+</form>
+</div>
+<div id="adminArea" class="hidden">
+<button id="logout">Cerrar sesión</button>
+<h2>Registrar certificado</h2>
+<form id="certForm">
+<label>Código único</label>
+<input id="code" required minlength="5" pattern="[A-Za-z0-9_-]+">
+<label>Nombre del participante</label>
+<input id="name" required>
+<label>Número de documento</label>
+<input id="document" required>
+<label>Nombre del curso</label>
+<input id="course" required>
+<label>Intensidad horaria</label>
+<input id="hours" type="number" min="1" required>
+<label>Fecha de expedición</label>
+<input id="issued" type="date" required>
+<label>Fecha de vencimiento (opcional)</label>
+<input id="expires" type="date">
+<label>Estado</label>
+<select id="state">
+<option value="vigente">Vigente</option>
+<option value="anulado">Anulado</option>
+</select>
+<button>Guardar certificado</button>
+</form>
+</div>
+<p id="message" role="status"></p>
+</section>
+</main>
+<footer>Centro de Capacitación Duvan Gonzalez</footer>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import{getFirestore,doc,getDoc,setDoc,serverTimestamp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const config={
+apiKey:"AIzaSyDuiBUtyuGGFOVTNZjiq_TSVNQ1-4fMq5Q",
+authDomain:"duvan-gonzalez-capacitacion.firebaseapp.com",
+projectId:"duvan-gonzalez-capacitacion",
+storageBucket:"duvan-gonzalez-capacitacion.firebasestorage.app",
+messagingSenderId:"813671023312",
+appId:"1:813671023312:web:86f92562c5e3092facd4d5"
+};
+const app=initializeApp(config);
+const auth=getAuth(app),db=getFirestore(app);
+const $=id=>document.getElementById(id);
+const admin="duvangonzalez.sst@gmail.com";
+const msg=$("message");
+const clean=v=>String(v||"").trim();
+const field=id=>clean($(id).value);
+
+$("searchForm").onsubmit=async e=>{
+e.preventDefault();
+const r=$("result");
+r.textContent="Consultando...";
+try{
+const code=field("searchCode").toUpperCase();
+const snap=await getDoc(doc(db,"certificados_publicos",code));
+if(!snap.exists()){r.textContent="Certificado no encontrado.";return}
+const d=snap.data();
+const expired=d.expires&&d.expires<new Date().toISOString().slice(0,10);
+const status=d.state==="anulado"?"ANULADO":expired?"VENCIDO":"VIGENTE";
+r.replaceChildren();
+for(const [key,value] of Object.entries({
+"Código":d.code,"Participante":d.name,
+"Documento":d.documentMasked,
+"Curso":d.course,"Horas":d.hours,
+"Expedición":d.issued,"Vencimiento":d.expires||"No especificado",
+"Estado":status
+})){
+const p=document.createElement("p");
+p.textContent=key+": "+value;r.append(p);
+}
+}catch(err){r.textContent="Error de consulta. Verifica permisos de Firestore."}
+};
+
+$("loginForm").onsubmit=async e=>{
+e.preventDefault();
+try{
+await signInWithEmailAndPassword(auth,field("email"),$("password").value);
+msg.textContent="";
+}catch(err){msg.textContent="No fue posible iniciar sesión."}
+};
+onAuthStateChanged(auth,user=>{
+const ok=user?.email?.toLowerCase()===admin;
+$("loginArea").classList.toggle("hidden",!!ok);
+$("adminArea").classList.toggle("hidden",!ok);
+});
+$("logout").onclick=()=>signOut(auth);
+$("certForm").onsubmit=async e=>{
+e.preventDefault();
+const user=auth.currentUser;
+if(user?.email?.toLowerCase()!==admin)return;
+const code=field("code").toUpperCase();
+const identity=field("document");
+const issued=field("issued"),expires=field("expires");
+if(!/^[A-Z0-9_-]{5,100}$/.test(code)){msg.textContent="Código inválido.";return}
+if(expires&&expires<issued){msg.textContent="Fecha de vencimiento inválida.";return}
+const publicData={
+code,name:field("name"),
+documentMasked:"**"+identity.slice(-4),
+course:field("course"),hours:Number(field("hours")),
+issued,expires,state:field("state"),
+updatedAt:serverTimestamp()
+};
+msg.textContent="Guardando...";
+try{
+await setDoc(doc(db,"certificados_publicos",code),publicData);
+await setDoc(doc(db,"certificados_privados",code),{
+...publicData,document:identity,
+updatedBy:user.uid,updatedAt:serverTimestamp()
+});
+msg.textContent="Certificado registrado: "+code;
+}catch(err){msg.textContent="Error al guardar. Revisa las reglas de seguridad."}
+};
+</script>
+</body>
+</html>
