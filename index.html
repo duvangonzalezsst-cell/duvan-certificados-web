@@ -36,6 +36,7 @@ footer{text-align:center;padding:20px;color:#617080}
 </section>
 <section>
 <h2>Acceso administrador</h2>
+  HTML
 <div id="loginArea">
 <form id="loginForm">
 <label>Correo electrónico</label>
@@ -77,7 +78,7 @@ footer{text-align:center;padding:20px;color:#617080}
 <footer>Centro de Capacitación Duvan Gonzalez</footer>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import{getFirestore,doc,getDoc,setDoc,serverTimestamp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const config={
@@ -92,6 +93,33 @@ const app=initializeApp(config);
 const auth=getAuth(app),db=getFirestore(app);
 const $=id=>document.getElementById(id);
 const admin="duvangonzalez.sst@gmail.com";
+  window.enviarVerificacion = async function () {
+  const usuario = auth.currentUser;
+
+  if (!usuario) {
+    alert("Primero inicia sesión como administrador.");
+    return;
+  }
+
+  if (usuario.email.toLowerCase() !== admin.toLowerCase()) {
+    alert("Esta cuenta no es el administrador.");
+    return;
+  }
+
+  await usuario.reload();
+
+  if (usuario.emailVerified) {
+    alert("Tu correo ya está verificado.");
+    return;
+  }
+
+  try {
+    await sendEmailVerification(usuario);
+    alert("Correo enviado. Revisa Gmail y la carpeta de spam.");
+  } catch (error) {
+    alert("No se pudo enviar el correo: " + error.message);
+  }
+};
 const msg=$("message");
 const clean=v=>String(v||"").trim();
 const field=id=>clean($(id).value);
